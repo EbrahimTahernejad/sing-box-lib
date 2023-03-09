@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version'     
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: macOS-12
+    steps:
+
+      - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v3
+        with:
+          repository: 'SagerNet/sing-box'
+          path: 'box'
+          
+      - name: Setup Go
+        uses: actions/setup-go@v3.5.0
+        with:
+          go-version: '1.20'
+      
+      - name: Setup Gomobile
+        run: |
+          cd box
+          make lib_install
+          gomobile init
+          
+      - name: Build xcframework
+        run: |
+          cd box
+          go run ./cmd/internal/build_libbox -target=ios
+          zip -ry ./Libbox.xcframework.zip ./Libbox.xcframework
+          
+      - name: Detect checksum
+        run: |
+          export TEMP=`shasum -a 256 box/Libbox.xcframework.zip`
+          export CHECKSUM=${TEMP:0:64}
+          echo "FILE_CHECKSUM=${CHECKSUM}" >> $GITHUB_ENV
+          unset CHECKSUM
+          unset TEMP
+          
+      - name: Update package file
+        run: |
+          echo "// swift-tools-version: 5.7" > Package.swift
+          echo "" >> Package.swift
+          echo "import PackageDescription" >> Package.swift
+          echo "" >> Package.swift
+          echo "let package = Package(" >> Package.swift
+          echo "  name: \"Libbox\"," >> Package.swift
+          echo "  platforms: [.iOS(.v12)]," >> Package.swift
+          echo "  products: [" >> Package.swift
+          echo "    .library(name: \"Libbox\", targets: [\"Libbox\"])" >> Package.swift
+          echo "  ]," >> Package.swift
+          echo "  targets: [" >> Package.swift
+          echo "    .binaryTarget(" >> Package.swift
+          echo "      name: \"Libbox\"," >> Package.swift
+          echo "      url: \"https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/${{ github.event.inputs.version }}/Libbox.xcframework.zip\"," >> Package.swift
+          echo "      checksum: \"${{ env.FILE_CHECKSUM }}\"" >> Package.swift
+          echo "    )" >> Package.swift
+          echo "  ]" >> Package.swift
+          echo ")" >> Package.swift
+          
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Libbox Release ${{ github.event.inputs.version }}
+          commit_user_name: Ebrahim
+          commit_user_email: ebrahimtahernejad@gmail.com
+          tagging_message: ${{ github.event.inputs.version }}
+          file_pattern: 'Package.swift'
+          
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          tag_name: ${{ github.event.inputs.version }}
+          files: box/Libbox.xcframework.zip
