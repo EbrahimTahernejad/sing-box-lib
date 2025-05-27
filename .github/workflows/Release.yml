@@ -69,26 +69,24 @@ jobs:
       - name: Update Package.swift
         shell: bash
         run: |
-          cat > Package.swift <<'EOF'
-// swift-tools-version: 5.7
-
-import PackageDescription
-
-let package = Package(
-  name: "Libbox",
-  platforms: [.iOS(.v12)],
-  products: [
-    .library(name: "Libbox", targets: ["Libbox"]),
-  ],
-  targets: [
-    .binaryTarget(
-      name: "Libbox",
-      url: "https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/${{ github.event.inputs.version }}/Libbox.xcframework.zip",
-      checksum: "${{ env.file_checksum }}"
-    )
-  ]
-)
-EOF
+          echo "// swift-tools-version: 5.7" > Package.swift
+          echo "" >> Package.swift
+          echo "import PackageDescription" >> Package.swift
+          echo "" >> Package.swift
+          echo "let package = Package(" >> Package.swift
+          echo "  name: \"Libbox\"," >> Package.swift
+          echo "  platforms: [.iOS(.v12)]," >> Package.swift
+          echo "  products: [" >> Package.swift
+          echo "    .library(name: \"Libbox\", targets: [\"Libbox\"])," >> Package.swift
+          echo "  ]," >> Package.swift
+          echo "  targets: [" >> Package.swift
+          echo "    .binaryTarget(" >> Package.swift
+          echo "      name: \"Libbox\"," >> Package.swift
+          echo "      url: \"https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/${{ github.event.inputs.version }}/Libbox.xcframework.zip\"," >> Package.swift
+          echo "      checksum: \"${{ env.file_checksum }}\"" >> Package.swift
+          echo "    )" >> Package.swift
+          echo "  ]" >> Package.swift
+          echo ")" >> Package.swift
 
       # --- Commit the manifest and tag the commit (stefanzweifel/git-auto-commit-action@v5) ---
       - name: Commit manifest & tag
