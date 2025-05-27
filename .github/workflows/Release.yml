@@ -4,90 +4,106 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version'     
+        description: "Release version"
         required: true
         type: string
       tag:
-        description: 'Git Tag to checkout'
+        description: "Git Tag to checkout"
         required: true
         type: string
 
 jobs:
   release:
     runs-on: macOS-15
+
+    # Grant the GITHUB_TOKEN write permissions so the auto‑commit step can push
+    permissions:
+      contents: write
+
     steps:
+      # --- Check out main repository (latest checkout@v4) ---
+      - uses: actions/checkout@v4
 
-      - uses: actions/checkout@v3
-
-      - uses: actions/checkout@v3
+      # --- Check out sing‑box source at the requested tag ---
+      - uses: actions/checkout@v4
         with:
-          repository: 'SagerNet/sing-box'
-          path: 'box'
+          repository: SagerNet/sing-box
+          path: box
           ref: ${{ github.event.inputs.tag }}
-          
-      - name: Setup Go
-        uses: actions/setup-go@v3.5.0
-        with:
-          go-version: '1.20'
 
-      - name: Setup node
+      # --- Set up Go (setup-go@v5) ---
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.1"
+
+      # --- Set up Node (setup-node@v4) ---
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-      
+          node-version: "20"
+
+      # --- Install gomobile toolchain ---
       - name: Setup Gomobile
         run: |
           cd box
           make lib_install
           gomobile init
-          
+
+      # --- Build the iOS xcframework ---
       - name: Build xcframework
         run: |
           cd box
           go run ./cmd/internal/build_libbox -target=ios
           zip -ry ./Libbox.xcframework.zip ./Libbox.xcframework
-          
+
+      # --- Generate SHA‑256 checksum for release asset ---
       - name: Detect checksum
+        id: checksum
+        shell: bash
         run: |
-          export TEMP=`shasum -a 256 box/Libbox.xcframework.zip`
-          export CHECKSUM=${TEMP:0:64}
-          echo "FILE_CHECKSUM=${CHECKSUM}" >> $GITHUB_ENV
-          unset CHECKSUM
-          unset TEMP
-          
+          CHECKSUM=$(shasum -a 256 box/Libbox.xcframework.zip | awk '{print $1}')
+          echo "file_checksum=$CHECKSUM" >> "$GITHUB_ENV"
+
+      # --- Generate SwiftPM Package.swift manifest pointing to the new asset ---
       - name: Update package file
         run: |
-          echo "// swift-tools-version: 5.7" > Package.swift
-          echo "" >> Package.swift
-          echo "import PackageDescription" >> Package.swift
-          echo "" >> Package.swift
-          echo "let package = Package(" >> Package.swift
-          echo "  name: \"Libbox\"," >> Package.swift
-          echo "  platforms: [.iOS(.v12)]," >> Package.swift
-          echo "  products: [" >> Package.swift
-          echo "    .library(name: \"Libbox\", targets: [\"Libbox\"])" >> Package.swift
-          echo "  ]," >> Package.swift
-          echo "  targets: [" >> Package.swift
-          echo "    .binaryTarget(" >> Package.swift
-          echo "      name: \"Libbox\"," >> Package.swift
-          echo "      url: \"https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/${{ github.event.inputs.version }}/Libbox.xcframework.zip\"," >> Package.swift
-          echo "      checksum: \"${{ env.FILE_CHECKSUM }}\"" >> Package.swift
-          echo "    )" >> Package.swift
-          echo "  ]" >> Package.swift
-          echo ")" >> Package.swift
-          
-      - uses: stefanzweifel/git-auto-commit-action@v4
+          cat > Package.swift <<'EOF'
+// swift-tools-version: 5.7
+
+import PackageDescription
+
+let package = Package(
+  name: "Libbox",
+  platforms: [.iOS(.v12)],
+  products: [
+    .library(name: "Libbox", targets: ["Libbox"]),
+  ],
+  targets: [
+    .binaryTarget(
+      name: "Libbox",
+      url: "https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/${{ github.event.inputs.version }}/Libbox.xcframework.zip",
+      checksum: "${{ env.file_checksum }}"
+    ),
+  ]
+)
+EOF
+
+      # --- Commit the updated manifest and create a tag (git‑auto‑commit@v5) ---
+      - name: Commit manifest & tag
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: Libbox Release ${{ github.event.inputs.version }}
-          commit_user_name: Ebrahim
-          commit_user_email: ebrahimtahernejad@gmail.com
-          tagging_message: ${{ github.event.inputs.version }}
-          file_pattern: 'Package.swift'
-          
+          commit_message: "Libbox Release ${{ github.event.inputs.version }}"
+          commit_user_name: "Ebrahim"
+          commit_user_email: "ebrahimtahernejad@gmail.com"
+          tagging_message: "${{ github.event.inputs.version }}"
+          file_pattern: Package.swift
+
+      # --- Publish GitHub release (action-gh-release@v2) ---
       - name: Upload Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           draft: false
           tag_name: ${{ github.event.inputs.version }}
-          body: 'Compiled from source tag: ${{ github.event.inputs.tag }}'
+          body: "Compiled from source tag: ${{ github.event.inputs.tag }}"
           files: box/Libbox.xcframework.zip
