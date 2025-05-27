@@ -6,13 +6,13 @@ let package = Package(
   name: "Libbox",
   platforms: [.iOS(.v12)],
   products: [
-    .library(name: "Libbox", targets: ["Libbox"])
+    .library(name: "Libbox", targets: ["Libbox"]),
   ],
   targets: [
     .binaryTarget(
       name: "Libbox",
-      url: "https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/1.9.0/Libbox.xcframework.zip",
-      checksum: "4655377463ffc951184f801e67c129e4da97dabcd8777c8d55683ad041715134"
+      url: "https://github.com/EbrahimTahernejad/sing-box-lib/releases/download/1.11.11/Libbox.xcframework.zip",
+      checksum: "c5a440e99e3cc52ea7f2a0a483fd973eef8c5dc49518673ae66e95c70ab70db8"
     )
   ]
 )
